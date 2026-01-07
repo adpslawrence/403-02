@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星空鋼琴節奏遊戲</title>
+    <!-- 載入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;700&display=swap');
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background: linear-gradient(135deg, #1f074d, #000000); /* 深紫到黑色的浪漫星空背景 */
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        #game-container {
+            width: 100%;
+            max-width: 800px;
+            height: 600px;
+            background-color: rgba(10, 0, 30, 0.85); /* 半透明深色遊戲區域 */
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            border: 4px solid #a855f7; /* 紫色邊框 */
+        }
+
+        #canvas-wrapper {
+            flex-grow: 1;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        #score-board {
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #fce4ec; /* 淺粉色文字 */
+            background-color: rgba(0, 0, 0, 0.5);
+            font-size: 1.25rem;
+            font-weight: 700;
+            border-top: 1px solid #a855f7;
+        }
+
+        .message-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            z-index: 100;
+            color: #333;
+            max-width: 90%;
+        }
+
+        /* 鋼琴按鍵區域的樣式 */
+        #piano-keys {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100px; /* 鋼琴鍵的高度 */
+            display: flex;
+            background-color: rgba(0, 0, 0, 0.7);
+            border-top: 3px solid #a855f7;
+            z-index: 50;
+        }
+
+        .key {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            color: white;
+            transition: background-color 0.1s ease;
+            position: relative;
+            cursor: pointer;
+            border-left: 1px solid #333;
+        }
+
+        .key:last-child {
+            border-right: none;
+        }
+
+        /* 節拍線的顏色定義 - 增加浪漫氛圍 */
+        .color-1 { background-color: #f06292; } /* 粉紅色 */
+        .color-2 { background-color: #ba68c8; } /* 淡紫色 */
+        .color-3 { background-color: #64b5f6; } /* 天藍色 */
+        .color-4 { background-color: #81c784; } /* 淺綠色 */
+        .color-5 { background-color: #ffb74d; } /* 橘黃色 */
+
+        .color-1-active { background-color: #e91e63 !important; box-shadow: 0 0 15px #e91e63; }
+        .color-2-active { background-color: #9c27b0 !important; box-shadow: 0 0 15px #9c27b0; }
+        .color-3-active { background-color: #2196f3 !important; box-shadow: 0 0 15px #2196f3; }
+        .color-4-active { background-color: #4caf50 !important; box-shadow: 0 0 15px #4caf50; }
+        .color-5-active { background-color: #ff9800 !important; box-shadow: 0 0 15px #ff9800; }
+
+        /* 點擊效果的動畫 */
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+
+        .hit-effect {
+            position: absolute;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.8);
+            animation: pulse 0.3s ease-out forwards;
+            pointer-events: none;
+        }
+
+        /* 響應式調整 */
+        @media (max-width: 640px) {
+            #game-container {
+                height: 90vh;
+                border-radius: 0.5rem;
+            }
+            #score-board {
+                font-size: 1rem;
+                padding: 0.5rem;
+            }
+            #piano-keys {
+                height: 80px;
+            }
+            .key {
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <!-- 分數板 -->
+        <div id="score-board">
+            <div>得分: <span id="score">0</span></div>
+            <div>連擊: <span id="combo">0</span></div>
+            <div>關卡: <span id="level">1</span></div>
+        </div>
+
+        <!-- 遊戲畫布區域 -->
+        <div id="canvas-wrapper">
+            <canvas id="rhythmCanvas"></canvas>
+            
+            <!-- 鋼琴按鍵區域 -->
+            <div id="piano-keys">
+                <!-- 鍵盤將由 JS 動態生成，但我們在此添加點擊目標線條 -->
+            </div>
+        </div>
+
+        <!-- 遊戲訊息框 (開始/結束) -->
+        <div id="start-message" class="message-box">
+            <h2 class="text-3xl font-bold mb-4 text-pink-600">星空鋼琴節奏遊戲</h2>
+            <p class="mb-6">扮演浪漫星空下的鋼琴家，點擊對應顏色的節拍線來彈奏！</p>
+            <p class="mb-6 font-bold text-xl">點擊鍵盤或滑鼠來進行遊戲。</p>
+            <button id="startButton" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-6 rounded-full shadow-lg transition duration-300 transform hover:scale-105">
+                開始彈奏 (第一關)
+            </button>
+        </div>
+
+        <div id="end-message" class="message-box hidden">
+            <h2 class="text-4xl font-bold mb-4 text-purple-600">恭喜完成所有關卡！</h2>
+            <p class="mb-6 text-2xl">最終得分: <span id="finalScore" class="font-extrabold text-pink-500">0</span></p>
+            <button id="restartButton" class="bg-pink-600 hover:bg-pink-700 text-white font-bold py-2 px-6 rounded-full shadow-lg transition duration-300 transform hover:scale-105">
+                重新開始
+            </button>
+        </div>
+    </div>
+
+    <script type="module">
+        // --- Firebase Setup (For future save/load, currently only includes basic setup) ---
+        /*
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        let firebaseConfig = null;
+        try {
+            firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        } catch (e) {
+            console.error("Failed to parse firebase config:", e);
+        }
+
+        let app, db, auth;
+        let userId = 'anonymous';
+
+        if (firebaseConfig && Object.keys(firebaseConfig).length > 0) {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+
+            async function authenticate() {
+                try {
+                    if (typeof __initial_auth_token !== 'undefined') {
+                        const userCredential = await signInWithCustomToken(auth, __initial_auth_token);
+                        userId = userCredential.user.uid;
+                        console.log("Signed in with custom token. User ID:", userId);
+                    } else {
+                        const userCredential = await signInAnonymously(auth);
+                        userId = userCredential.user.uid;
+                        console.log("Signed in anonymously. User ID:", userId);
+                    }
+                } catch (error) {
+                    console.error("Firebase Auth Error:", error);
+                }
+            }
+            authenticate();
+        } else {
+            console.warn("Firebase config is missing or invalid. Data saving/loading will not be functional.");
+        }
+        */
+        // ---------------------------------------------------------------------------------
+
+        const canvas = document.getElementById('rhythmCanvas');
+        const ctx = canvas.getContext('2d');
+        const pianoKeysDiv = document.getElementById('piano-keys');
+        const scoreElement = document.getElementById('score');
+        const comboElement = document.getElementById('combo');
+        const levelElement = document.getElementById('level');
+        const startMessage = document.getElementById('start-message');
+        const endMessage = document.getElementById('end-message');
+        const finalScoreElement = document.getElementById('finalScore');
+        const startButton = document.getElementById('startButton');
+        const restartButton = document.getElementById('restartButton');
+
+        let notes = []; // 節拍線的陣列
+        let score = 0;
+        let combo = 0;
+        let currentLevel = 1;
+        let gameRunning = false;
+        let lastTime = 0;
+        let noteCounter = 0; // 用來控制音符生成的計數器
+        let noteInterval = 60; // 基礎音符生成間隔 (以幀為單位)
+
+        // 關卡配置：現在只有 Level 1 到 Level 4，Level 4 為最終關卡。
+        const levelConfigs = [
+            // Level 0: 預留 (不使用)
+            { speed: 0, interval: 0 },
+            // Level 1: 基礎速度
+            { speed: 3.5, interval: 60, name: "入門星光" },
+            // Level 2: 略微加速
+            { speed: 4.5, interval: 50, name: "流星軌跡" },
+            // Level 3: 浪漫療癒速度 (使用者要求慢一點)
+            { speed: 3.0, interval: 65, name: "寧靜協奏" }, 
+            // Level 4: 星河漫步 (最終關卡，中等偏快速度)
+            { speed: 5.0, interval: 48, name: "星河漫步" }
+        ];
+        
+        // 最終關卡索引 (Level 4)
+        const FINAL_LEVEL_INDEX = levelConfigs.length - 1; // 4
+        // 總分達到此分數後，在 Level 4 結束遊戲
+        const FINAL_SCORE_GOAL = 600; 
+
+        // 節拍線的顏色與鍵盤映射
+        const lanes = [
+            { id: 0, color: '#f06292', activeClass: 'color-1-active', key: 'D' }, // 粉紅色
+            { id: 1, color: '#ba68c8', activeClass: 'color-2-active', key: 'F' }, // 淡紫色
+            { id: 2, color: '#64b5f6', activeClass: 'color-3-active', key: 'J' }, // 天藍色
+            { id: 3, color: '#81c784', activeClass: 'color-4-active', key: 'K' }, // 淺綠色
+            { id: 4, color: '#ffb74d', activeClass: 'color-5-active', key: 'L' }  // 橘黃色
+        ];
+
+        const numLanes = lanes.length;
+        let keyWidth;
+        const noteHeight = 25; // 節拍線的高度
+        const targetLineY = 50; // 判定線距離底部的高度 (像素)
+        let targetY; // 判定線的實際像素位置
+
+        // 繪製星空背景
+        function drawBackground() {
+            // 繪製深紫色的底色
+            ctx.fillStyle = '#1a044d';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 隨機繪製星星
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            for (let i = 0; i < 100; i++) {
+                let x = Math.random() * canvas.width;
+                let y = Math.random() * (canvas.height - 100); // 避開鋼琴鍵區域
+                let size = Math.random() * 2;
+                ctx.fillRect(x, y, size, size);
+            }
+
+            // 繪製主角 (簡單示意)
+            ctx.fillStyle = '#fce4ec'; // 粉嫩色作為主角
+            ctx.font = '20px "Noto Sans TC"';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = '#a855f7';
+            ctx.shadowBlur = 10;
+            ctx.fillText('主角 (浪漫女人)', canvas.width * 0.5, canvas.height * 0.3);
+            ctx.shadowBlur = 0;
+
+            // 繪製目標判定線 (在鋼琴鍵上方)
+            ctx.strokeStyle = '#a855f7'; // 紫色判定線
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(0, targetY);
+            ctx.lineTo(canvas.width, targetY);
+            ctx.stroke();
+
+            // 繪製鋼琴鍵區域上方邊界
+            ctx.strokeStyle = '#a855f7';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height - 100);
+            ctx.lineTo(canvas.width, canvas.height - 100);
+            ctx.stroke();
+        }
+
+        // 繪製單個節拍線
+        function drawNote(note) {
+            const laneIndex = note.lane;
+            const laneColor = lanes[laneIndex].color;
+            const x = laneIndex * keyWidth;
+            const y = note.y;
+
+            // 音符發光效果
+            ctx.shadowColor = laneColor;
+            ctx.shadowBlur = 10;
+
+            ctx.fillStyle = laneColor;
+            ctx.fillRect(x, y, keyWidth, noteHeight);
+
+            // 移除發光效果以繪製邊框
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.strokeRect(x, y, keyWidth, noteHeight);
+        }
+
+        // 更新遊戲狀態
+        function update() {
+            if (!gameRunning) return;
+
+            const config = levelConfigs[currentLevel];
+            const noteSpeed = config.speed;
+            noteInterval = config.interval;
+
+            // 節拍線生成邏輯 (簡化為固定間隔隨機生成)
+            noteCounter++;
+            if (noteCounter >= noteInterval) {
+                // 隨機生成一個節拍線
+                const randomLane = Math.floor(Math.random() * numLanes);
+                notes.push({
+                    lane: randomLane,
+                    y: 0, // 從頂部開始
+                    missed: false // 是否已經判定為錯過
+                });
+                noteCounter = 0;
+            }
+
+            // 移動節拍線並檢查錯過
+            for (let i = 0; i < notes.length; i++) {
+                const note = notes[i];
+                note.y += noteSpeed;
+
+                // 檢查是否錯過判定線 (超出判定線下方)
+                if (note.y > targetY + noteHeight * 2 && !note.missed) {
+                    note.missed = true;
+                    combo = 0; // 錯過則連擊歸零
+                    updateScore(0);
+                }
+            }
+
+            // 移除已經超出畫面的節拍線
+            notes = notes.filter(note => note.y < canvas.height + noteHeight);
+
+            // 檢查是否達到換關條件 (每 100 分晉級，Level 4 為最終關卡)
+            const promotionScore = 100;
+            
+            // 如果不是最終關卡，且分數達到晉級標準
+            if (currentLevel < FINAL_LEVEL_INDEX && score >= currentLevel * promotionScore) {
+                currentLevel++;
+                levelElement.textContent = currentLevel;
+                
+                const nextLevelName = levelConfigs[currentLevel].name;
+                alertMessage(`恭喜！進入第 ${currentLevel} 關: ${nextLevelName}`, 2000, '#ffdc5e');
+            } 
+            // 如果是最終關卡 (Level 4)，且總分達到目標，則結束遊戲
+            else if (currentLevel === FINAL_LEVEL_INDEX && score >= FINAL_SCORE_GOAL) {
+                 endGame();
+                 return;
+            }
+
+            // 繪製
+            draw();
+        }
+
+        // 繪製所有東西
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // 清空畫布
+            drawBackground();
+
+            notes.forEach(drawNote);
+
+            // 繪製鍵盤上的顏色線 (作為點擊區域視覺提示)
+            lanes.forEach((lane, index) => {
+                const x = index * keyWidth;
+                const keyY = canvas.height - 100;
+                // 畫布上的點擊區域線條
+                ctx.fillStyle = lane.color;
+                ctx.fillRect(x, keyY, keyWidth, 10);
+            });
+        }
+
+        // 處理點擊事件 (鍵盤或滑鼠)
+        function handleHit(laneIndex) {
+            if (!gameRunning) return;
+
+            const targetLane = lanes[laneIndex];
+
+            // 點擊鋼琴鍵視覺反饋
+            const keyDiv = document.getElementById(`key-${laneIndex}`);
+            if (keyDiv) {
+                keyDiv.classList.add(targetLane.activeClass);
+                setTimeout(() => keyDiv.classList.remove(targetLane.activeClass), 100);
+            }
+
+            // 尋找目標區域內的節拍線
+            let hit = false;
+            for (let i = 0; i < notes.length; i++) {
+                const note = notes[i];
+                if (note.lane === laneIndex && !note.missed) {
+                    // 檢查是否在判定範圍內 (判定線 Y +/- 誤差範圍)
+                    const hitRangeTop = targetY - noteHeight;
+                    const hitRangeBottom = targetY + noteHeight * 2;
+
+                    if (note.y + noteHeight > hitRangeTop && note.y < hitRangeBottom) {
+                        // 命中！
+                        notes.splice(i, 1); // 移除節拍線
+                        i--;
+                        hit = true;
+                        combo++;
+                        updateScore(1);
+
+                        // 顯示命中效果 (白色圓點脈衝)
+                        showHitEffect(laneIndex * keyWidth + keyWidth / 2, targetY);
+                        break;
+                    }
+                }
+            }
+
+            if (!hit) {
+                combo = 0; // 沒打到正確的音符，連擊歸零
+                updateScore(0);
+            }
+        }
+
+        // 顯示命中效果
+        function showHitEffect(x, y) {
+            const effect = document.createElement('div');
+            effect.className = 'hit-effect';
+            effect.style.width = '20px';
+            effect.style.height = '20px';
+            effect.style.left = `${x}px`;
+            effect.style.top = `${y}px`;
+            
+            canvas.parentNode.appendChild(effect);
+
+            // 動畫結束後移除元素
+            effect.addEventListener('animationend', () => {
+                effect.remove();
+            });
+        }
+
+        // 更新分數和連擊數
+        function updateScore(hitType) {
+            if (hitType === 1) { // 命中
+                score += 10 + Math.floor(combo / 10) * 5; // 增加分數並考慮連擊加成
+                scoreElement.textContent = score;
+                comboElement.textContent = combo;
+            } else { // 錯過或錯誤點擊
+                comboElement.textContent = combo;
+            }
+        }
+
+        // 遊戲主迴圈
+        function gameLoop(timestamp) {
+            const deltaTime = timestamp - lastTime;
+            lastTime = timestamp;
+
+            update();
+
+            if (gameRunning) {
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        // 啟動遊戲
+        function startGame() {
+            score = 0;
+            combo = 0;
+            currentLevel = 1;
+            notes = [];
+            noteCounter = 0;
+            gameRunning = true;
+
+            scoreElement.textContent = score;
+            comboElement.textContent = combo;
+            levelElement.textContent = currentLevel;
+
+            startMessage.classList.add('hidden');
+            endMessage.classList.add('hidden');
+            
+            // 確保尺寸正確
+            resizeCanvas();
+
+            // 開始迴圈
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 結束遊戲 (完成所有關卡)
+        function endGame() {
+            gameRunning = false;
+            finalScoreElement.textContent = score;
+            endMessage.classList.remove('hidden');
+        }
+
+        // 設置畫布尺寸和計算關鍵參數
+        function resizeCanvas() {
+            const container = document.getElementById('canvas-wrapper');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+
+            keyWidth = canvas.width / numLanes;
+            // 判定線 Y 座標 (距離底部 100px 是鋼琴鍵，再往上 targetLineY 像素是判定線)
+            targetY = canvas.height - 100 - targetLineY;
+
+            // 重新繪製背景和鍵盤提示線
+            if (!gameRunning) {
+                drawBackground();
+            }
+        }
+
+        // 動態生成鋼琴按鍵 (作為滑鼠點擊區域和鍵盤提示)
+        function setupPianoKeys() {
+            pianoKeysDiv.innerHTML = '';
+            lanes.forEach((lane, index) => {
+                const keyDiv = document.createElement('div');
+                keyDiv.id = `key-${index}`;
+                keyDiv.className = `key bg-gray-900 border-r border-gray-700`;
+                keyDiv.style.backgroundColor = lane.color; // 設置鍵盤區域的底色為節拍線顏色
+                keyDiv.style.opacity = 0.3; // 讓底色更柔和
+                keyDiv.textContent = lane.key; // 顯示鍵盤按鍵
+
+                // 添加滑鼠點擊事件
+                keyDiv.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    handleHit(index);
+                });
+
+                pianoKeysDiv.appendChild(keyDiv);
+            });
+        }
+
+        // 鍵盤事件監聽
+        document.addEventListener('keydown', (e) => {
+            if (!gameRunning) return;
+            const key = e.key.toUpperCase();
+            const laneIndex = lanes.findIndex(l => l.key === key);
+            if (laneIndex !== -1) {
+                // 阻止瀏覽器默認行為 (例如F5重新整理)
+                e.preventDefault(); 
+                handleHit(laneIndex);
+            }
+        });
+
+        // 顯示臨時訊息 (用於換關提示)
+        function alertMessage(text, duration, color) {
+            const msgBox = document.createElement('div');
+            msgBox.className = 'message-box transition duration-500 ease-out opacity-0';
+            msgBox.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            msgBox.style.color = 'white';
+            msgBox.style.border = `2px solid ${color}`;
+            msgBox.innerHTML = `<p class="text-2xl font-bold">${text}</p>`;
+
+            document.getElementById('game-container').appendChild(msgBox);
+
+            // 確保訊息顯示出來
+            setTimeout(() => {
+                msgBox.classList.remove('opacity-0');
+            }, 50);
+
+            // 訊息消失
+            setTimeout(() => {
+                msgBox.classList.add('opacity-0');
+                // 動畫結束後移除元素
+                msgBox.addEventListener('transitionend', () => msgBox.remove());
+            }, duration);
+        }
+
+        // --- 初始化與事件綁定 ---
+        window.addEventListener('resize', resizeCanvas);
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', startGame);
+
+        // 初始設置
+        setupPianoKeys();
+        window.onload = function () {
+            resizeCanvas();
+            drawBackground(); // 首次載入時繪製一次背景和提示
+        }
+
+    </script>
+</body>
+</html>
